@@ -86,21 +86,15 @@ fun Context.capture(configuration: Configuration, recognizer: TextRecognizer, on
         val rotation = if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) 90 else 0
 
         imageProxy.toBitmap().rotate(rotation).run {
-            file = File(
-                    filesDir,
-            "${
-                LocalDateTime.now().format(
-                    DateTimeFormatter.ofPattern("dd-MM-yyyy_AAAAAAAA")
-                )}.png"
-            )
+            file = getImage(imageName)
             if (!compress(
                 Bitmap.CompressFormat.PNG, 100,
                 FileOutputStream(file)
             )) file = null
 
             recognizer.process(InputImage.fromBitmap(this, rotation))
-                .addOnSuccessListener {
-                    onRead(it.textBlocks.map { it.text })
+                .addOnSuccessListener { text ->
+                    onRead(text.textBlocks.map { text.text })
                 }
                 .addOnFailureListener {
                     println("Failed")
