@@ -24,14 +24,15 @@ val ocrDatabase: List<OcrData>
 fun getImage(name: String) = File(imagesDir, name).apply { createNewFile() }
 fun getText(name: String) = File(textsDir, name).apply { createNewFile() }
 
-suspend fun addData(name: String, texts: List<String>) {
+fun addData(name: String, texts: List<String>) {
+    println("Adding data: $name, $texts")
     OcrData(name).write(texts)
-    databaseFile.appendText("$name\n")
+    if (!ocrDatabase.any { it.name == name })
+        databaseFile.appendText("$name\n")
 }
 
 val imageName: String
     get() = "${
         LocalDateTime.now().format(
             DateTimeFormatter.ofPattern("dd-MM-yyyy_AAAAAAAA")
-        )
-    }.png"
+        )}.png"

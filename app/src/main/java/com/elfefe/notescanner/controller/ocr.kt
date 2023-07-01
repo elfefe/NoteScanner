@@ -29,12 +29,15 @@ fun extractData(scope: CoroutineScope, file: File, onData: (String) -> Unit) {
                 header("filename", file.name)
                 timeout { requestTimeoutMillis = HttpTimeout.INFINITE_TIMEOUT_MS }
             }
-        withContext(Dispatchers.Main) {
-            response.content.read { onData(it.decodeString()) }
+        response.content.read {
+            onData(it.decodeString())
         }
         client.close()
     }
 }
 
 val authorization: String
-    get() = File(com.elfefe.notescanner.presenter.Application.instance.filesDir, "Authorization").readText()
+    get() = File(
+        com.elfefe.notescanner.presenter.Application.instance.filesDir,
+        "Authorization"
+    ).readText()

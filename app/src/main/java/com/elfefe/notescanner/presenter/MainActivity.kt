@@ -8,6 +8,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import com.elfefe.notescanner.controller.addData
+import com.elfefe.notescanner.controller.databaseFile
 import com.elfefe.notescanner.controller.onMain
 import com.elfefe.notescanner.ui.composable.Main
 import com.elfefe.notescanner.ui.theme.NoteScannerTheme
@@ -38,24 +39,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    fun updateDatabase(image: String, data: String) {
-        println("updateDatabase: $image")
-        updateQueue[image] = data
+    fun updateDatabase(name: String, data: String) {
+        updateQueue[name] = data
         lifecycleScope.launch(Dispatchers.IO) {
             if (!isUpdatingDatabase.getAndSet(true))
-                try {
-                    onMain { println("Empty queue: ${updateQueue.isNotEmpty()}") }
                     while (updateQueue.isNotEmpty())
-                        updateQueue.forEach { (image, data) ->
-                            onMain { println("remove: ${updateQueue.remove(image)}") }
-
-                            addData(image, Gson().fromJson(
-                                data, object : TypeToken<List<String>>() {}.type
-                            ))
-
-                            notifiedExtractPics()
+                        updateQueue.forEach { (name, data) ->
+                            onMain { println("remove: ${updateQueue.remove(name)}") }
+                            try {
+                                addData(name, Gson().fromJson(
+                                    data, object : TypeToken<List<String>>() {}.type
+                                ))
+                            } catch (e: Exception) { addData(name, listOf("error")) }
+                            onMain {
+                                println("Notify")
+                                notifiedExtractPics() }
                         }
-                } catch (e: Exception) { onMain { e.printStackTrace() } }
             isUpdatingDatabase.set(false)
         }
     }

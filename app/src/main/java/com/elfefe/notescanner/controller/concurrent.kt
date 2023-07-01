@@ -10,5 +10,8 @@ import java.util.concurrent.Executor
 val executorMain: Executor
     get() = HandlerExecutor(Looper.getMainLooper())
 
+val applicationScope: CoroutineScope
+    get() = com.elfefe.notescanner.presenter.Application.instance.scope
+
 suspend fun onMain(block: CoroutineScope.() -> Unit) =
     withContext(Dispatchers.Main) { block() }

@@ -3,6 +3,7 @@ package com.elfefe.notescanner.ui.composable
 import android.Manifest
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.widget.Toast
 import androidx.camera.core.ImageCapture
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
@@ -12,41 +13,58 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import com.elfefe.notescanner.R
+import com.elfefe.notescanner.controller.applicationScope
 import com.elfefe.notescanner.controller.capture
 import com.elfefe.notescanner.controller.createVideoCaptureUseCase
 import com.elfefe.notescanner.controller.extractData
@@ -135,7 +153,7 @@ fun MainActivity.Camera() {
     }
 
     ConstraintLayout(modifier = Modifier.fillMaxSize()) {
-        val (camera, captureButton, outputText) = createRefs()
+        val (camera, captureButton) = createRefs()
         AndroidView(
             factory = { previewView },
             modifier = Modifier
@@ -166,9 +184,11 @@ fun MainActivity.Camera() {
                     context.capture(configuration, recognizer, {
                         isCapturing = false
                         it?.let { file ->
-                            updateDatabase(file.name.removeSuffix(".png"), "[]")
-                            extractData(scope, file) { text ->
-                                updateDatabase(file.name, text)
+                            val name = file.name.removeSuffix(".png")
+                            updateDatabase(name, "[]")
+                            extractData(applicationScope, file) { text ->
+                                println(text)
+                                updateDatabase(name, text)
                             }
                             capturedImage = BitmapFactory.decodeFile(file.absolutePath)
                         }
@@ -196,21 +216,23 @@ fun MainActivity.Camera() {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MainActivity.Cards() {
     val scope = rememberCoroutineScope()
 
-    var extractedPics by remember { mutableStateOf(ocrDatabase) }
+    val extractedPics = remember { mutableStateListOf(*ocrDatabase.toTypedArray()) }
 
-    LaunchedEffect("Ocr data") {
-        scope.launch {
-            notifiedExtractPics = { extractedPics = ocrDatabase }
-        }
+    val clipBoard = LocalClipboardManager.current
+
+    notifiedExtractPics = {
+        extractedPics.clear()
+        extractedPics.addAll(ocrDatabase)
     }
 
     LazyColumn(
         modifier = Modifier
-            .background(Color.LightGray)
+            .background(MaterialTheme.colorScheme.background)
             .fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -220,43 +242,130 @@ fun MainActivity.Cards() {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(256.dp),
-                colors = CardDefaults.cardColors(Color.White, Color.Black),
+                    .height(256.dp)
+                    .animateItemPlacement(animationSpec = tween(100, 0, FastOutLinearInEasing)),
+                colors = CardDefaults.elevatedCardColors(
+                    MaterialTheme.colorScheme.onBackground,
+                    MaterialTheme.colorScheme.onSurface
+                ),
                 elevation = CardDefaults.cardElevation(8.dp),
             ) {
+                println(it)
                 Row(
                     modifier = Modifier
-                        .padding(16.dp)
+                        .padding(8.dp)
                         .background(Color.Transparent)
                         .fillMaxSize(),
-                     verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    println(it)
                     Image(
                         bitmap = BitmapFactory.decodeFile(
                             getImage(it.imageName).absolutePath
                         ).asImageBitmap(),
                         modifier = Modifier
-                            .fillMaxWidth(.4f),
-                        contentDescription = null
+                            .clip(RoundedCornerShape(8.dp))
+                            .fillMaxHeight()
+                            .wrapContentWidth(),
+                        contentDescription = null,
+                        contentScale = ContentScale.FillHeight
                     )
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    LazyColumn(
+                    Column(
                         modifier = Modifier
-                            .fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                            .fillMaxSize()
                     ) {
-                        if (it.texts.isEmpty()) item {
-                            CircularProgressIndicator(
-                                modifier = Modifier
-                                    .height(64.dp)
-                                    .fillMaxWidth()
-                            )
+                        LazyColumn(
+                            modifier = Modifier
+                                .background(
+                                    MaterialTheme.colorScheme.surface,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (it.texts.isNotEmpty()) {
+                                        clipBoard.setText(
+                                            AnnotatedString(it.texts.joinToString("\n"))
+                                        )
+                                        Toast
+                                            .makeText(
+                                                application,
+                                                "Copied to clipboard",
+                                                Toast.LENGTH_SHORT
+                                            )
+                                            .show()
+                                    }
+                                },
+                            contentPadding = PaddingValues(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            if (it.texts.isEmpty()) item {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize(),
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .size(64.dp)
+                                    )
+                                }
+                            }
+                            else items(it.texts) { text ->
+                                Text(
+                                    text = text,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
                         }
-                        else items(it.texts) { text ->
-                            Text(text = text)
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    updateDatabase(it.name, "[]")
+                                    extractData(applicationScope, getImage(it.imageName)) { text ->
+                                        updateDatabase(it.name, text)
+                                    }
+                                }) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.surface
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    scope.launch(Dispatchers.IO) {
+                                        it.delete()
+                                        notifiedExtractPics()
+                                    }
+                                }) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+
+                                }) {
+                                Icon(
+                                    imageVector = Icons.Default.Send,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.surface
+                                )
+                            }
                         }
                     }
                 }
